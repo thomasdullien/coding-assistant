@@ -3,17 +3,10 @@ package web
 import (
     "html/template"
     "net/http"
-)
 
-// Struct to hold form data
-type FormData struct {
-    GithubUser   string
-    GithubToken  string
-    RepoURL      string
-    Branch       string
-    Files        []string
-    Prompt       string
-}
+    "assistant/assistant"
+    "assistant/types"  // Import the types package
+)
 
 var tmpl = template.Must(template.ParseFiles("web/templates/index.html"))
 
@@ -30,9 +23,8 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle form submission
 func submitHandler(w http.ResponseWriter, r *http.Request) {
-    // Parse form
     r.ParseForm()
-    data := FormData{
+    data := types.FormData{
         GithubUser:   r.FormValue("githubUser"),
         GithubToken:  r.FormValue("githubToken"),
         RepoURL:      r.FormValue("repoURL"),
@@ -41,10 +33,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         Prompt:       r.FormValue("prompt"),
     }
 
-    // Start the process asynchronously
-    go ProcessAssistant(data)
+    go assistant.ProcessAssistant(data)  // Call ProcessAssistant in the assistant package
 
-    // Display confirmation to the user
     http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
