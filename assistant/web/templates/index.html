@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASSISTANT Web Interface</title>
+</head>
+<body>
+  <form action="/submit" method="post">
+    <label for="githubUser">GitHub User:</label>
+    <input type="text" id="githubUser" name="githubUser" required><br>
+    
+    <label for="githubToken">GitHub Token:</label>
+    <input type="password" id="githubToken" name="githubToken" required><br>
+    
+    <label for="repoURL">Repository URL:</label>
+    <input type="text" id="repoURL" name="repoURL" required><br>
+    
+    <label for="files">Files (comma-separated):</label>
+    <input type="text" id="files" name="files" required><br>
+    
+    <label for="prompt">Prompt:</label>
+    <textarea id="prompt" name="prompt" rows="4" cols="50" required></textarea><br>
+    
+    <button type="submit">Submit</button>
+  </form>
+</body>
+</html>
+
