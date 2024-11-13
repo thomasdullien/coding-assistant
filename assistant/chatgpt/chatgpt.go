@@ -27,12 +27,14 @@ type ChatGPTResponse struct {
     } `json:"choices"`
 }
 
+const systemprompt = "You are an expert C++ developer assistant. Please execute the task described below. When replying, please reply with entire .cpp or .hpp files, not just the changes. Delimit the files with '/* START OF FILE: $filename */' and '/* END OF FILE: $filename */'."
+
 // CreateRequest prepares the prompt request for ChatGPT
 func CreateRequest(prompt string) ChatGPTRequest {
     return ChatGPTRequest{
-        Model: "gpt-4",
+        Model: "gpt-4o-mini",
         Messages: []Message{
-            {Role: "system", Content: "You are an expert C++ developer assistant."},
+            {Role: "system", Content: systemprompt},
             {Role: "user", Content: prompt},
         },
     }
@@ -58,6 +60,8 @@ func SendRequest(request ChatGPTRequest) (string, error) {
     req.Header.Set("Authorization", "Bearer "+apiKey)
     req.Header.Set("Content-Type", "application/json")
 
+    // Log the request for debugging.
+    fmt.Println("ChatGPT request:", string(requestBody))
     client := &http.Client{}
     resp, err := client.Do(req)
     if err != nil {
