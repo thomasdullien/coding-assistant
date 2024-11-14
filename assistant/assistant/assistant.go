@@ -19,7 +19,7 @@ import (
 func ProcessAssistant(data types.FormData) {
     // Clone repository and create branch
     log.Println("Cloning repository and creating branch...")
-    err := cloneAndCheckoutRepo(data)
+    err := cloneAndCheckoutRepo(&data)
     if err != nil {
         log.Fatalf("Failed to clone repository: %v", err)
     }
@@ -43,7 +43,7 @@ func ProcessAssistant(data types.FormData) {
     // Query ChatGPT and apply changes iteratively
     for attempts := 0; attempts < 5; attempts++ {
         log.Printf("Applying changes, attempt %d...", attempts+1)
-        err := applyChangesWithChatGPT(data, prompt)
+        err := applyChangesWithChatGPT(&data, prompt)
         if err != nil {
             log.Fatalf("Failed to apply changes: %v", err)
         }
@@ -52,9 +52,9 @@ func ProcessAssistant(data types.FormData) {
         log.Println("Running tests...")
         if runTests() {
             log.Println("Tests passed, creating pull request...")
-            commitAndPush(data)
+            commitAndPush(&data)
             log.Println("Changes pushed to branch.")
-            createPullRequest(data)
+            createPullRequest(&data)
             return
         }
         prompt += "\nTest failed, please address the following issues."
@@ -63,7 +63,7 @@ func ProcessAssistant(data types.FormData) {
 }
 
 // All helper functions go here
-// renameBranch renames "assistant-branch" to "assistant-$summary" and logs the output.
+
 // It takes the summary as an argument and renames the local branch.
 func renameBranch(summary string) error {
     newBranchName := fmt.Sprintf("assistant-%s", summary)
@@ -93,7 +93,7 @@ func renameBranch(summary string) error {
 
 // applyChangesWithChatGPT sends a prompt to ChatGPT, retrieves the response, and applies any changes
 // specified in the response to the relevant files in the local repository.
-func applyChangesWithChatGPT(data types.FormData, prompt string) error {
+func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     // Create a ChatGPT request with the initial prompt
     request := chatgpt.CreateRequest(prompt)
 
@@ -110,6 +110,7 @@ func applyChangesWithChatGPT(data types.FormData, prompt string) error {
     }
     if success {
       err := renameBranch(summary)
+      data.Branch = fmt.Sprintf("assistant-%s", summary)
       if err != nil {
         log.Fatalf("Error renaming branch: %v", err)
       }
@@ -175,7 +176,7 @@ func parseResponseForFiles(response string) (map[string]string, string, bool) {
     return filesContent, summary, true
 }
 
-func cloneAndCheckoutRepo(data types.FormData) error {
+func cloneAndCheckoutRepo(data *types.FormData) error {
     // Remove the existing "repo" directory if it exists
     if _, err := os.Stat("repo"); err == nil {
         err = os.RemoveAll("repo")
@@ -263,12 +264,13 @@ func calculateDependencies(files []string) ([]string, error) {
 
 // commitAndPush stages changes, commits them, and pushes to the remote repository.
 // Logs detailed output in case of errors for each command.
-func commitAndPush(data types.FormData) error {
+func commitAndPush(data *types.FormData) error {
     // Run `git add .` to stage all changes
     addCmd := exec.Command("git", "add", ".")
     var addOutBuf, addErrBuf bytes.Buffer
     addCmd.Stdout = &addOutBuf
     addCmd.Stderr = &addErrBuf
+    addCmd.Dir = "repo"
 
     if err := addCmd.Run(); err != nil {
         log.Printf("Failed to add changes. Stdout: %s, Stderr: %s", addOutBuf.String(), addErrBuf.String())
@@ -280,6 +282,7 @@ func commitAndPush(data types.FormData) error {
     var commitOutBuf, commitErrBuf bytes.Buffer
     commitCmd.Stdout = &commitOutBuf
     commitCmd.Stderr = &commitErrBuf
+    commitCmd.Dir = "repo"
 
     if err := commitCmd.Run(); err != nil {
         log.Printf("Failed to commit changes. Stdout: %s, Stderr: %s", commitOutBuf.String(), commitErrBuf.String())
@@ -287,10 +290,12 @@ func commitAndPush(data types.FormData) error {
     }
 
     // Run `git push -u origin <branch>` to push the changes to the remote branch
+    log.Println("data.Branch is", data.Branch)
     pushCmd := exec.Command("git", "push", "-u", "origin", data.Branch)
     var pushOutBuf, pushErrBuf bytes.Buffer
     pushCmd.Stdout = &pushOutBuf
     pushCmd.Stderr = &pushErrBuf
+    pushCmd.Dir = "repo"
 
     if err := pushCmd.Run(); err != nil {
         log.Printf("Failed to push changes. Stdout: %s, Stderr: %s", pushOutBuf.String(), pushErrBuf.String())
@@ -301,10 +306,29 @@ func commitAndPush(data types.FormData) error {
     return nil
 }
 
-func createPullRequest(data types.FormData) {
+// createPullRequest creates a pull request using the GitHub CLI (`gh`) command.
+// Logs detailed output in case of errors.
+func createPullRequest(data *types.FormData) error {
+    // Prepare the `gh` command to create a pull request
     cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", "Please review the automated changes.")
-    cmd.Dir = "repo"
-    cmd.Run()
+    cmd.Dir = "repo" // Set the working directory to the local repo
+
+    // Capture stdout and stderr
+    var outBuf, errBuf bytes.Buffer
+    cmd.Stdout = &outBuf
+    cmd.Stderr = &errBuf
+
+    // Execute the command
+    err := cmd.Run()
+    if err != nil {
+        // Log the output and error if the command fails
+        log.Printf("Failed to create pull request. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
+        return fmt.Errorf("failed to create pull request: %v", err)
+    }
+
+    // Log the successful output
+    log.Printf("Pull request created successfully. Stdout: %s", outBuf.String())
+    return nil
 }
 
 func runTests() bool {
