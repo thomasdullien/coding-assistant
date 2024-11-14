@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    "assistant/web"
+    "github.com/thomasdullien/coding-assistant/assistant/web"
 )
 
 func main() {

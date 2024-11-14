@@ -11,8 +11,8 @@ import (
     "bytes"
     "bufio"
 
-    "assistant/chatgpt"
-    "assistant/types"
+    "github.com/thomasdullien/coding-assistant/assistant/chatgpt"
+    "github.com/thomasdullien/coding-assistant/assistant/types"
 )
 
 // ProcessAssistant handles the main workflow

@@ -1,11 +1,11 @@
 package web
 
 import (
-    "html/template"
+    "text/template"
     "net/http"
 
-    "assistant/assistant"
-    "assistant/types"  // Import the types package
+    "github.com/thomasdullien/coding-assistant/assistant/assistant"
+    "github.com/thomasdullien/coding-assistant/assistant/types" 
 )
 
 var tmpl = template.Must(template.ParseFiles("web/templates/index.html"))
