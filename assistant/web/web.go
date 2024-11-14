@@ -3,12 +3,14 @@ package web
 import (
     "text/template"
     "net/http"
+    "log"
 
     "github.com/thomasdullien/coding-assistant/assistant/assistant"
     "github.com/thomasdullien/coding-assistant/assistant/types" 
 )
 
 var tmpl = template.Must(template.ParseFiles("web/templates/index.html"))
+var resultTmpl = template.Must(template.ParseFiles("web/templates/result.html"))
 
 // Serve the web interface
 func ServeWebInterface() {
@@ -32,9 +34,22 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         Prompt:       r.FormValue("prompt"),
     }
 
-    go assistant.ProcessAssistant(data)  // Call ProcessAssistant in the assistant package
+    // Run ProcessAssistant and capture the pull request link or error
+    prLink, err := assistant.ProcessAssistant(data)
+    if err != nil {
+        log.Printf("Error in ProcessAssistant: %v", err)
+        resultTmpl.Execute(w, map[string]string{
+            "Message": "An error occurred: " + err.Error(),
+            "Link":    "",
+        })
+        return
+    }
 
-    http.Redirect(w, r, "/", http.StatusSeeOther)
+    // Show the result page with the pull request link
+    resultTmpl.Execute(w, map[string]string{
+        "Message": "Pull request created successfully!",
+        "Link":    prLink,
+    })
 }
 
 

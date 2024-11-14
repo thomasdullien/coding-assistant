@@ -16,12 +16,12 @@ import (
 )
 
 // ProcessAssistant handles the main workflow
-func ProcessAssistant(data types.FormData) {
+func ProcessAssistant(data types.FormData) (string, error) {
     // Clone repository and create branch
     log.Println("Cloning repository and creating branch...")
     err := cloneAndCheckoutRepo(&data)
     if err != nil {
-        log.Fatalf("Failed to clone repository: %v", err)
+        return "", fmt.Errorf("failed to clone repository: %v", err)
     }
 
     // Calculate dependencies
@@ -31,7 +31,7 @@ func ProcessAssistant(data types.FormData) {
       log.Printf("Dependency %d: %s", i, dep)
     }
     if err != nil {
-        log.Fatalf("Failed to calculate dependencies: %v", err)
+        return "", fmt.Errorf("failed to calculate dependencies: %v", err)
     }
 
     // Prepare prompt
@@ -41,25 +41,33 @@ func ProcessAssistant(data types.FormData) {
     log.Println("Prompt:", prompt)
 
     // Query ChatGPT and apply changes iteratively
-    for attempts := 0; attempts < 5; attempts++ {
+    for attempts := 0; attempts < 2; attempts++ {
         log.Printf("Applying changes, attempt %d...", attempts+1)
         err := applyChangesWithChatGPT(&data, prompt)
         if err != nil {
-            log.Fatalf("Failed to apply changes: %v", err)
+            return "", fmt.Errorf("failed to apply changes: %v", err)
         }
 
         // Run tests and create pull request if successful
         log.Println("Running tests...")
         if runTests() {
             log.Println("Tests passed, creating pull request...")
-            commitAndPush(&data)
+            err1 := commitAndPush(&data)
+            if err1 != nil {
+              return "", fmt.Errorf("failed to commit and push changes: %v", err1)
+            }
             log.Println("Changes pushed to branch.")
-            createPullRequest(&data)
-            return
+            prlink, err := createPullRequest(&data)
+            if err != nil {
+                return "", fmt.Errorf("failed to create pull request: %v", err)
+            }
+            log.Printf("Pull request created: %s", prlink)
+            return prlink, nil
         }
         prompt += "\nTest failed, please address the following issues."
     }
     log.Println("Exceeded maximum attempts, please review manually.")
+    return "", fmt.Errorf("Exceeded maximum attempts to fix the test, please review.")
 }
 
 // All helper functions go here
@@ -308,7 +316,7 @@ func commitAndPush(data *types.FormData) error {
 
 // createPullRequest creates a pull request using the GitHub CLI (`gh`) command.
 // Logs detailed output in case of errors.
-func createPullRequest(data *types.FormData) error {
+func createPullRequest(data *types.FormData) (string, error) {
     // Prepare the `gh` command to create a pull request
     cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", "Please review the automated changes.")
     cmd.Dir = "repo" // Set the working directory to the local repo
@@ -323,12 +331,12 @@ func createPullRequest(data *types.FormData) error {
     if err != nil {
         // Log the output and error if the command fails
         log.Printf("Failed to create pull request. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
-        return fmt.Errorf("failed to create pull request: %v", err)
+        return "", fmt.Errorf("failed to create pull request: %v", err)
     }
 
     // Log the successful output
     log.Printf("Pull request created successfully. Stdout: %s", outBuf.String())
-    return nil
+    return outBuf.String(), nil
 }
 
 func runTests() bool {

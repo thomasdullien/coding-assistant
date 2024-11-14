@@ -1,29 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en">  
+<head>                          
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ASSISTANT Web Interface</title>
   <style>
-    body {
+    body {               
       font-family: Arial, sans-serif;
-      background-color: #f4f4f9;
-      display: flex;
-      align-items: center;
+      background-color: #f4f4f9;         
+      display: flex;                              
+      align-items: center;                                                                                                              
       justify-content: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .container {
+      height: 100vh;                              
+      margin: 0;                                              
+    }  
+                                                                    
+    .container {                                          
       background-color: #ffffff;
-      padding: 20px 30px;
-      border-radius: 8px;
+      padding: 20px 30px;                
+      border-radius: 8px;                                                                                                               
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      width: 400px;
+      width: 400px;                        
       max-width: 100%;
-    }
-
+    }   
+                                                                    
     h1 {
       text-align: center;
       color: #333333;
@@ -65,12 +65,28 @@
     button:hover {
       background-color: #45a049;
     }
+
+    /* Spinner styles */
+    .spinner {
+      display: none;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>ASSISTANT</h1>
-    <form action="/submit" method="post">
+    <form id="assistantForm" action="/submit" method="post" onsubmit="showSpinner()">
       <label for="githubUser">GitHub User:</label>
       <input type="text" id="githubUser" name="githubUser" required>
       
@@ -84,8 +100,18 @@
       <textarea id="prompt" name="prompt" rows="4" required></textarea>
       
       <button type="submit">Submit</button>
+      <div class="spinner" id="spinner"></div>
     </form>
   </div>
+
+  <script>
+    function showSpinner() {
+      // Display the spinner and hide the form fields
+      document.getElementById("spinner").style.display = "block";
+      document.getElementById("assistantForm").style.display = "none";
+    }
+  </script>
 </body>
 </html>
+
 
