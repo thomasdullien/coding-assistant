@@ -26,7 +26,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
     r.ParseForm()
     data := types.FormData{
         GithubUser:   r.FormValue("githubUser"),
-        GithubToken:  r.FormValue("githubToken"),
         RepoURL:      r.FormValue("repoURL"),
         Branch:       "assistant-branch",
         Files:        r.Form["files"],
@@ -37,4 +36,5 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
     http.Redirect(w, r, "/", http.StatusSeeOther)
 }
+
 

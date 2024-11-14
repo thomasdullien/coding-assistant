@@ -4,26 +4,88 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ASSISTANT Web Interface</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      background-color: #ffffff;
+      padding: 20px 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      width: 400px;
+      max-width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333333;
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      color: #555555;
+      font-weight: bold;
+    }
+
+    input[type="text"],
+    textarea,
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+      border: 1px solid #cccccc;
+      font-size: 1em;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    button {
+      background-color: #4CAF50;
+      color: white;
+      font-size: 1.1em;
+      cursor: pointer;
+      border: none;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
 </head>
 <body>
-  <form action="/submit" method="post">
-    <label for="githubUser">GitHub User:</label>
-    <input type="text" id="githubUser" name="githubUser" required><br>
-    
-    <label for="githubToken">GitHub Token:</label>
-    <input type="password" id="githubToken" name="githubToken" required><br>
-    
-    <label for="repoURL">Repository URL:</label>
-    <input type="text" id="repoURL" name="repoURL" required><br>
-    
-    <label for="files">Files (comma-separated):</label>
-    <input type="text" id="files" name="files" required><br>
-    
-    <label for="prompt">Prompt:</label>
-    <textarea id="prompt" name="prompt" rows="4" cols="50" required></textarea><br>
-    
-    <button type="submit">Submit</button>
-  </form>
+  <div class="container">
+    <h1>ASSISTANT</h1>
+    <form action="/submit" method="post">
+      <label for="githubUser">GitHub User:</label>
+      <input type="text" id="githubUser" name="githubUser" required>
+      
+      <label for="repoURL">Repository URL:</label>
+      <input type="text" id="repoURL" name="repoURL" required>
+      
+      <label for="files">Files (comma-separated):</label>
+      <input type="text" id="files" name="files" required>
+      
+      <label for="prompt">Prompt:</label>
+      <textarea id="prompt" name="prompt" rows="4" required></textarea>
+      
+      <button type="submit">Submit</button>
+    </form>
+  </div>
 </body>
 </html>
 
