@@ -63,6 +63,33 @@ func ProcessAssistant(data types.FormData) {
 }
 
 // All helper functions go here
+// renameBranch renames "assistant-branch" to "assistant-$summary" and logs the output.
+// It takes the summary as an argument and renames the local branch.
+func renameBranch(summary string) error {
+    newBranchName := fmt.Sprintf("assistant-%s", summary)
+
+    // Run git command to rename the branch
+    cmd := exec.Command("git", "branch",
+      "-m", "assistant-branch", newBranchName)
+    cmd.Dir = "repo"
+
+    // Capture stdout and stderr
+    var outBuf, errBuf bytes.Buffer
+    cmd.Stdout = &outBuf
+    cmd.Stderr = &errBuf
+
+    // Execute the command
+    err := cmd.Run()
+    if err != nil {
+        // Log the output and error if the command fails
+        log.Printf("Failed to rename branch. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
+        return fmt.Errorf("failed to rename branch: %v", err)
+    }
+
+    // Log the successful output
+    log.Printf("Branch renamed successfully. Stdout: %s", outBuf.String())
+    return nil
+}
 
 // applyChangesWithChatGPT sends a prompt to ChatGPT, retrieves the response, and applies any changes
 // specified in the response to the relevant files in the local repository.
@@ -77,9 +104,15 @@ func applyChangesWithChatGPT(data types.FormData, prompt string) error {
     }
 
     // Parse the response to extract file contents based on delimiters
-    filesContent, success := parseResponseForFiles(response)
+    filesContent, summary, success := parseResponseForFiles(response)
     if !success {
         return fmt.Errorf("failed to parse files from ChatGPT response")
+    }
+    if success {
+      err := renameBranch(summary)
+      if err != nil {
+        log.Fatalf("Error renaming branch: %v", err)
+      }
     }
 
     // Loop through each file path and content pair, writing the content to the specified file path
@@ -95,24 +128,32 @@ func applyChangesWithChatGPT(data types.FormData, prompt string) error {
     return nil
 }
 
-// parseResponseForFiles extracts the content for each file based on the START and END delimiters.
-// It returns a map where the keys are the full file paths and the values are the corresponding file contents.
-// Additionally, it returns a boolean indicating success (true if any files were parsed successfully).
-func parseResponseForFiles(response string) (map[string]string, bool) {
+// parseResponseForFiles extracts the content for each file and a summary string from the response.
+// It returns a map of file paths and their contents, the extracted summary string, and a boolean indicating success.
+func parseResponseForFiles(response string) (map[string]string, string, bool) {
     filesContent := make(map[string]string)
 
-    // Regex to match the START delimiter with the filename
+    // Regex to match the START and END delimiters with file paths
     startRegex := regexp.MustCompile(`/\* START OF FILE: (.*?) \*/`)
     endRegex := regexp.MustCompile(`/\* END OF FILE: .*? \*/`)
+
+    // Regex to match "Summary: $summary", where $summary contains only alphanumeric characters and dashes
+    summaryRegex := regexp.MustCompile(`Summary: ([a-zA-Z0-9-]+)`)
+    summaryMatch := summaryRegex.FindStringSubmatch(response)
+    var summary string
+    if len(summaryMatch) > 1 {
+        summary = summaryMatch[1]
+    } else {
+        return nil, "", false // No summary found
+    }
 
     // Find all start matches and iterate over them
     startMatches := startRegex.FindAllStringSubmatchIndex(response, -1)
     if len(startMatches) == 0 {
-        return nil, false // No files found
+        return nil, "", false // No files found
     }
 
     for _, startMatch := range startMatches {
-        //start := startMatch[0]
         end := startMatch[1]
         filename := response[startMatch[2]:startMatch[3]] // Extract filename from capture group
 
@@ -131,7 +172,7 @@ func parseResponseForFiles(response string) (map[string]string, bool) {
         filesContent[filename] = content
     }
 
-    return filesContent, true
+    return filesContent, summary, true
 }
 
 func cloneAndCheckoutRepo(data types.FormData) error {
@@ -220,24 +261,44 @@ func calculateDependencies(files []string) ([]string, error) {
     return dependencies, nil
 }
 
+// commitAndPush stages changes, commits them, and pushes to the remote repository.
+// Logs detailed output in case of errors for each command.
 func commitAndPush(data types.FormData) error {
-    cmd := exec.Command("git", "add", ".")
-    cmd.Dir = "repo"
-    if err := cmd.Run(); err != nil {
-        return err
+    // Run `git add .` to stage all changes
+    addCmd := exec.Command("git", "add", ".")
+    var addOutBuf, addErrBuf bytes.Buffer
+    addCmd.Stdout = &addOutBuf
+    addCmd.Stderr = &addErrBuf
+
+    if err := addCmd.Run(); err != nil {
+        log.Printf("Failed to add changes. Stdout: %s, Stderr: %s", addOutBuf.String(), addErrBuf.String())
+        return fmt.Errorf("failed to add changes: %v", err)
     }
 
-    cmd = exec.Command("git", "commit", "-m", "Applying requested changes")
-    cmd.Dir = "repo"
-    if err := cmd.Run(); err != nil {
-        log.Println("Failed to commit the changes.")
-        return err
+    // Run `git commit -m "Applying requested changes"` to create a commit
+    commitCmd := exec.Command("git", "commit", "-m", "Applying requested changes")
+    var commitOutBuf, commitErrBuf bytes.Buffer
+    commitCmd.Stdout = &commitOutBuf
+    commitCmd.Stderr = &commitErrBuf
+
+    if err := commitCmd.Run(); err != nil {
+        log.Printf("Failed to commit changes. Stdout: %s, Stderr: %s", commitOutBuf.String(), commitErrBuf.String())
+        return fmt.Errorf("failed to commit changes: %v", err)
     }
 
-    log.Println("Changes committed, pushing to branch...")
-    cmd = exec.Command("git", "push", "-u", "origin", data.Branch)
-    cmd.Dir = "repo"
-    return cmd.Run()
+    // Run `git push -u origin <branch>` to push the changes to the remote branch
+    pushCmd := exec.Command("git", "push", "-u", "origin", data.Branch)
+    var pushOutBuf, pushErrBuf bytes.Buffer
+    pushCmd.Stdout = &pushOutBuf
+    pushCmd.Stderr = &pushErrBuf
+
+    if err := pushCmd.Run(); err != nil {
+        log.Printf("Failed to push changes. Stdout: %s, Stderr: %s", pushOutBuf.String(), pushErrBuf.String())
+        return fmt.Errorf("failed to push changes: %v", err)
+    }
+
+    log.Println("Changes committed and pushed successfully.")
+    return nil
 }
 
 func createPullRequest(data types.FormData) {

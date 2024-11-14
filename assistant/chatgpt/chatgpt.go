@@ -7,6 +7,7 @@ import (
     "io/ioutil"
     "net/http"
     "os"
+    "log"
 )
 
 const openAIEndpoint = "https://api.openai.com/v1/chat/completions"
@@ -27,7 +28,7 @@ type ChatGPTResponse struct {
     } `json:"choices"`
 }
 
-const systemprompt = "You are an expert C++ developer assistant. Please execute the task described below. When replying, please reply with entire .cpp or .hpp files, not just the changes. Delimit the files with '/* START OF FILE: $filename */' and '/* END OF FILE: $filename */'."
+const systemprompt = "You are an expert C++ developer assistant. Please execute the task described below. When replying, please reply with entire .cpp or .hpp files, not just the changes. Delimit the files with '/* START OF FILE: $filename */' and '/* END OF FILE: $filename */'. Please also include a three-word summary of the PR changes. The summary should be in the format 'Summary: $summary'. The summary should be a maximum of three words separated by dashes, and not include any other punctuation or special characters. It will be used to identify the branch name for the PR. Please provide a one-line commit message too, in the format 'Commit-Message: $message'."
 
 // CreateRequest prepares the prompt request for ChatGPT
 func CreateRequest(prompt string) ChatGPTRequest {
@@ -44,6 +45,7 @@ func CreateRequest(prompt string) ChatGPTRequest {
 func SendRequest(request ChatGPTRequest) (string, error) {
     apiKey := os.Getenv("OPENAI_API_KEY")
     if apiKey == "" {
+        log.Printf("OPENAI_API_KEY environment variable is not set")
         return "", fmt.Errorf("OPENAI_API_KEY environment variable is not set")
     }
 
@@ -56,7 +58,7 @@ func SendRequest(request ChatGPTRequest) (string, error) {
     if err != nil {
         return "", err
     }
-
+    log.Printf("Request: %v", req)
     req.Header.Set("Authorization", "Bearer "+apiKey)
     req.Header.Set("Content-Type", "application/json")
 
@@ -77,8 +79,10 @@ func SendRequest(request ChatGPTRequest) (string, error) {
     var chatResponse ChatGPTResponse
     err = json.NewDecoder(resp.Body).Decode(&chatResponse)
     if err != nil {
+        log.Printf("Failed to decode response: %v", err)
         return "", err
     }
+    log.Printf("ChatGPT response: %v", chatResponse)
 
     if len(chatResponse.Choices) > 0 {
         return chatResponse.Choices[0].Message.Content, nil
