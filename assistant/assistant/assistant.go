@@ -129,6 +129,7 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     if !success {
         return fmt.Errorf("failed to parse files from ChatGPT response")
     }
+    
     if success {
       err := renameBranch(summary)
       data.Branch = fmt.Sprintf("assistant-%s", summary)
@@ -346,8 +347,8 @@ func commitAndPush(data *types.FormData) error {
         return fmt.Errorf("failed to add changes: %v", err)
     }
 
-    // Run `git commit -m "Applying requested changes"` to create a commit
-    commitCmd := exec.Command("git", "commit", "-m", "Applying requested changes")
+    // Run `git commit -m "Applying user prompt changes"` to create a commit
+    commitCmd := exec.Command("git", "commit", "-m", fmt.Sprintf("Applying changes from user prompt: %s", data.Prompt))
     var commitOutBuf, commitErrBuf bytes.Buffer
     commitCmd.Stdout = &commitOutBuf
     commitCmd.Stderr = &commitErrBuf
@@ -379,7 +380,7 @@ func commitAndPush(data *types.FormData) error {
 // Logs detailed output in case of errors.
 func createPullRequest(data *types.FormData) (string, error) {
     // Prepare the `gh` command to create a pull request
-    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", "Please review the automated changes.")
+    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", fmt.Sprintf("Automated changes based on: %s", data.Prompt))
     cmd.Dir = "repo" // Set the working directory to the local repo
 
     // Capture stdout and stderr
@@ -451,6 +452,3 @@ func buildPrompt(userPrompt string, deps []string) string {
 
     return builder.String()
 }
-
-
-
