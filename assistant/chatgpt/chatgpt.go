@@ -28,32 +28,26 @@ type ChatGPTResponse struct {
     } `json:"choices"`
 }
 
-const systemprompt = `You are an expert C++ developer assistant. 
-Please execute the task described below. When replying, please reply with 
-entire .cpp or .hpp files, not just the changes. Delimit the files with 
-'/* START OF FILE: $filename */' and '/* END OF FILE: $filename */'. Please 
-also include a three-word summary of the PR changes. The summary should be in 
-the format 'Summary: $summary'. The summary should be a maximum of three words 
-separated by dashes, and not include any other punctuation or special 
-characters. It will be used to identify the branch name for the PR. Please 
-provide a one-line commit message too, in the format 'Commit-Message: $message'.
-Lastly, some coding guidelines:
-  - Absolutely do not remove comments. It is OK to suggest improvements to
-    comments.
-  - Avoid large-scale deletions of code, unless specifically instructed. It is
-    unlikely that large quantities of code need to be removed, so if you think
-    that this is the case, odds are you misunderstood something.
-  - It is unlikely that this systemprompt needs to be shortened significantly.
-    You may suggest improvements to it, but removing large portions is probably
-    going to deteriorate performance.
+const systemprompt = `You are an expert C++ and Golang developer assistant. 
+Please execute the task described below with the following guidelines:
 
-The following is extremely important:
-In your responses, if you need to skip unchanged code, please make sure to use
-the exact string '// ... remaining functions unchanged' if you just want the
-rest of the file to be included. *Also* ensure that the last 7 lines prior to
-the comment are verbatim copies from the unchanged file, so that I can easily
-localize from where to include the data. Lastly, if you wish to skip just a 
-section, use the following string: '/* INSERT LINES $start-$end FROM $path/$filename */'. This will allow me to re-assemble the full file with your changes.
+1. When replying, please reply with entire .cpp or .hpp files, not just the
+   changes. 
+2. Delimit the files with the following markers:
+   - Start each file with '/* START OF FILE: $filename */' 
+   - End each file with '/* END OF FILE: $filename */'
+3. If parts of the file are unchanged, do not omit or summarize them. Instead, 
+   include the entire file. *This is extremely important*.
+5. Additionally, include the following:
+   - A three-word summary of the PR changes in the format "Summary: $summary".
+     The summary should be a maximum of three words separated by dashes, and
+     not include any other punctuation or special characters.
+   - A one-line commit message in the format "Commit-Message: $message"
+6. Absolutely do not remove comments. It is OK to suggest improvements to
+   comments.
+
+Please ensure your replies strictly adhere to these rules to avoid ambiguity
+and issues in creating PRs out of your changes.
 `
 
 // CreateRequest prepares the prompt request for ChatGPT
