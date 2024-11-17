@@ -137,17 +137,63 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
       }
     }
 
-    // Loop through each file path and content pair, writing the content to the specified file path
-    for filePath, content := range filesContent {
-        err := ioutil.WriteFile(filePath, []byte(content), 0644)
+    // Loop through each file path and content pair
+    for filePath, newContent := range filesContent {
+        if strings.Contains(newContent, "// ... (other functions remain unchanged)") {
+            // Handle splicing
+            log.Printf("Detected placeholder in %s, splicing content...", filePath)
+            updatedContent, spliceErr := spliceFileWithOriginal(filePath, newContent)
+            if spliceErr != nil {
+                return fmt.Errorf("failed to splice file %s: %v", filePath, spliceErr)
+            }
+            newContent = updatedContent
+        }
+
+        // Write the updated content to the file
+        err := ioutil.WriteFile(filePath, []byte(newContent), 0644)
         if err != nil {
             log.Printf("failed to write changes to file %s: %v", filePath, err)
             continue
         }
         log.Printf("Successfully applied changes to %s", filePath)
     }
-
     return nil
+}
+
+func spliceFileWithOriginal(filePath, newContent string) (string, error) {
+    // Read the original file from the repository
+    originalContentBytes, err := ioutil.ReadFile(filePath)
+    if err != nil {
+        return "", fmt.Errorf("failed to read original file %s: %v", filePath, err)
+    }
+    originalContent := string(originalContentBytes)
+
+    // Split the response into sections before and after the placeholder
+    parts := strings.Split(newContent, "// ... (other functions remain unchanged)")
+    if len(parts) != 2 {
+        return "", fmt.Errorf("unexpected content format, placeholder not properly split in %s", filePath)
+    }
+
+    // Extract sections before and after the placeholder
+    beforePlaceholder := parts[0]
+    afterPlaceholder := parts[1]
+
+    // Find the matching position in the original file for the beforePlaceholder
+    beforeIndex := strings.Index(originalContent, beforePlaceholder)
+    if beforeIndex == -1 {
+        return "", fmt.Errorf("could not find matching section for 'before' in original file %s", filePath)
+    }
+
+    // Find the remaining content after the placeholder in the original file
+    afterIndex := strings.Index(originalContent[beforeIndex:], afterPlaceholder)
+    if afterIndex == -1 {
+        return "", fmt.Errorf("could not find matching section for 'after' in original file %s", filePath)
+    }
+
+    // Splice the sections together
+    splicedContent := originalContent[:beforeIndex] + beforePlaceholder + originalContent[beforeIndex+afterIndex:] + afterPlaceholder
+
+    return splicedContent, nil
 }
 
 // parseResponseForFiles extracts the content for each file and a summary string from the response.
