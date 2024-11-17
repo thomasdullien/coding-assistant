@@ -38,7 +38,7 @@ separated by dashes, and not include any other punctuation or special
 characters. It will be used to identify the branch name for the PR. Please 
 provide a one-line commit message too, in the format 'Commit-Message: $message'.
 Lastly, some coding guidelines:
-  - Avoid removing comments when possible. It is OK to suggest improvements to
+  - Absolutely do not remove comments. It is OK to suggest improvements to
     comments.
   - Avoid large-scale deletions of code, unless specifically instructed. It is
     unlikely that large quantities of code need to be removed, so if you think
@@ -46,6 +46,10 @@ Lastly, some coding guidelines:
   - It is unlikely that this systemprompt needs to be shortened significantly.
     You may suggest improvements to it, but removing large portions is probably
     going to deteriorate performance.
+
+In your responses, if you need to skip unchanged code, use the following
+string: '/* INSERT LINES $start-$end FROM $path/$filename */'. This will
+allow me to re-assemble the full file with your changes.
 `
 
 // CreateRequest prepares the prompt request for ChatGPT
