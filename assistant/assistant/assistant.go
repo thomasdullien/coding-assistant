@@ -11,6 +11,7 @@ import (
     "bytes"
     "bufio"
     "path/filepath"
+    "time" // Import time package
 
     "github.com/thomasdullien/coding-assistant/assistant/chatgpt"
     "github.com/thomasdullien/coding-assistant/assistant/types"
@@ -87,7 +88,9 @@ func ProcessAssistant(data types.FormData) (string, error) {
 
 // It takes the summary as an argument and renames the local branch.
 func renameBranch(summary string) error {
-    newBranchName := fmt.Sprintf("assistant-%s", summary)
+    // Append timestamp to the branch name to avoid collision
+    timestamp := time.Now().Format("20060102150405") // Format: YYYYMMDDHHMMSS
+    newBranchName := fmt.Sprintf("assistant-%s-%s", summary, timestamp)
 
     // Run git command to rename the branch
     cmd := exec.Command("git", "branch",
@@ -132,7 +135,7 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     
     if success {
       err := renameBranch(summary)
-      data.Branch = fmt.Sprintf("assistant-%s", summary)
+      data.Branch = fmt.Sprintf("assistant-%s-%s", summary, time.Now().Format("20060102150405")) // Update branch name with timestamp
       if err != nil {
         log.Fatalf("Error renaming branch: %v", err)
       }
