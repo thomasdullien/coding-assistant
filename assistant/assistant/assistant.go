@@ -70,7 +70,7 @@ func ProcessAssistant(data types.FormData) (string, error) {
               return "", fmt.Errorf("failed to commit and push changes: %v", err1)
             }
             log.Println("Changes pushed to branch.")
-            prlink, err := createPullRequest(&data)
+            prlink, err := createPullRequest(&data, data.Prompt) // Pass the user prompt for PR description
             if err != nil {
                 return "", fmt.Errorf("failed to create pull request: %v", err)
             }
@@ -375,9 +375,10 @@ func commitAndPush(data *types.FormData) error {
 
 // createPullRequest creates a pull request using the GitHub CLI (`gh`) command.
 // Logs detailed output in case of errors.
-func createPullRequest(data *types.FormData) (string, error) {
+func createPullRequest(data *types.FormData, userPrompt string) (string, error) {
     // Prepare the `gh` command to create a pull request
-    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", "Please review the automated changes.")
+    body := fmt.Sprintf("Please review the automated changes:\n\nUser Prompt: %s", userPrompt) // Include user prompt in description
+    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", body)
     cmd.Dir = "repo" // Set the working directory to the local repo
 
     // Capture stdout and stderr
@@ -444,11 +445,4 @@ func buildPrompt(userPrompt string, deps []string) string {
         }
 
         // Add end delimiter
-        builder.WriteString(fmt.Sprintf("\n/* END OF FILE: %s */\n\n", dep))
-    }
-
-    return builder.String()
-}
-
-
-
+        builder.WriteString(fmt.Sprintf("\n

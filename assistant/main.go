@@ -9,4 +9,3 @@ func main() {
     fmt.Println("Starting ASSISTANT on localhost:8080")
     web.ServeWebInterface()
 }
-
