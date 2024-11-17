@@ -32,6 +32,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         Branch:       "assistant-branch",
         Files:        r.Form["files"],
         Prompt:       r.FormValue("prompt"),
+        RepoType:     r.FormValue("repoType"), // Capture the repository type
     }
 
     // Run ProcessAssistant and capture the pull request link or error

@@ -1,0 +1,4 @@
+./assistant/openai-key.txt
+*.swo
+*.swp
+

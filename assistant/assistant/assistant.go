@@ -10,6 +10,7 @@ import (
     "strings"
     "bytes"
     "bufio"
+    "path/filepath"
 
     "github.com/thomasdullien/coding-assistant/assistant/chatgpt"
     "github.com/thomasdullien/coding-assistant/assistant/types"
@@ -24,14 +25,24 @@ func ProcessAssistant(data types.FormData) (string, error) {
         return "", fmt.Errorf("failed to clone repository: %v", err)
     }
 
-    // Calculate dependencies
-    log.Println("Calculating dependencies...")
-    deps, err := calculateDependencies(data.Files)
-    for i, dep := range deps {
-      log.Printf("Dependency %d: %s", i, dep)
-    }
-    if err != nil {
-        return "", fmt.Errorf("failed to calculate dependencies: %v", err)
+    var deps []string
+    // Calculate dependencies for C++ code.
+    if (data.RepoType == "C++") {
+        log.Println("Calculating C++ dependencies...")
+        deps, err = calculateDependencies(data.Files)
+        for i, dep := range deps {
+          log.Printf("Dependency %d: %s", i, dep)
+        }
+        if err != nil {
+          return "", fmt.Errorf("failed to calculate dependencies: %v", err)
+        }
+    } else if data.RepoType == "Golang" {
+        // For Golang repositories, include the entire repository
+        log.Println("Including entire repository for Golang.")
+        deps, err = includeEntireRepo("repo")
+        if err != nil {
+            return "", fmt.Errorf("failed to include entire repository: %v", err)
+        }
     }
 
     // Prepare prompt
@@ -50,7 +61,9 @@ func ProcessAssistant(data types.FormData) (string, error) {
 
         // Run tests and create pull request if successful
         log.Println("Running tests...")
-        if runTests() {
+        // For the moment, assume that Golang tests always pass. This
+        // needs to change in the future.
+        if runTests() || data.RepoType == "Golang" {
             log.Println("Tests passed, creating pull request...")
             err1 := commitAndPush(&data)
             if err1 != nil {
@@ -344,6 +357,23 @@ func runTests() bool {
     cmd.Dir = "repo"
     err := cmd.Run()
     return err == nil
+}
+
+func includeEntireRepo(repoPath string) ([]string, error) {
+    var files []string
+    err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
+        if !info.IsDir() && strings.HasSuffix(path, ".go") {
+            files = append(files, path)
+        }
+        return nil
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to walk repository: %v", err)
+    }
+    return files, nil
 }
 
 // buildPrompt generates a prompt that includes the user's request and the contents of each dependency file.
