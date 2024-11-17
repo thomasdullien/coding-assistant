@@ -1,18 +1,18 @@
+```go
 package web
 
 import (
-    "text/template"
-    "net/http"
     "log"
+    "net/http"
+    "text/template"
 
     "github.com/thomasdullien/coding-assistant/assistant/assistant"
-    "github.com/thomasdullien/coding-assistant/assistant/types" 
+    "github.com/thomasdullien/coding-assistant/assistant/types"
 )
 
 var tmpl = template.Must(template.ParseFiles("web/templates/index.html"))
 var resultTmpl = template.Must(template.ParseFiles("web/templates/result.html"))
 
-// Serve the web interface
 func ServeWebInterface() {
     http.HandleFunc("/", homeHandler)
     http.HandleFunc("/submit", submitHandler)
@@ -23,9 +23,13 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
     tmpl.Execute(w, nil)
 }
 
-// Handle form submission
 func submitHandler(w http.ResponseWriter, r *http.Request) {
-    r.ParseForm()
+    if err := r.ParseForm(); err != nil {
+        log.Printf("Error parsing form: %v", err)
+        http.Error(w, "Unable to parse form.", http.StatusBadRequest)
+        return
+    }
+
     data := types.FormData{
         GithubUser:   r.FormValue("githubUser"),
         RepoURL:      r.FormValue("repoURL"),
@@ -34,7 +38,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         Prompt:       r.FormValue("prompt"),
     }
 
-    // Run ProcessAssistant and capture the pull request link or error
     prLink, err := assistant.ProcessAssistant(data)
     if err != nil {
         log.Printf("Error in ProcessAssistant: %v", err)
@@ -45,11 +48,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Show the result page with the pull request link
     resultTmpl.Execute(w, map[string]string{
         "Message": "Pull request created successfully!",
         "Link":    prLink,
     })
 }
-
-
+```
