@@ -9,4 +9,3 @@ type FormData struct {
     Prompt       string
     RepoType     string
 }
-

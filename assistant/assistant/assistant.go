@@ -380,7 +380,7 @@ func commitAndPush(data *types.FormData) error {
 // Logs detailed output in case of errors.
 func createPullRequest(data *types.FormData) (string, error) {
     // Prepare the `gh` command to create a pull request
-    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", fmt.Sprintf("Automated changes based on: %s", data.Prompt))
+    cmd := exec.Command("gh", "pr", "create", "--title", fmt.Sprintf("Automated Changes based on: %s", data.Prompt), "--body", fmt.Sprintf("Automated changes based on: %s", data.Prompt))
     cmd.Dir = "repo" // Set the working directory to the local repo
 
     // Capture stdout and stderr
