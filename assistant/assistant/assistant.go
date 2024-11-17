@@ -139,7 +139,7 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
 
     // Loop through each file path and content pair
     for filePath, newContent := range filesContent {
-        if strings.Contains(newContent, "// ... (other functions remain unchanged)") {
+        if strings.Contains(newContent, "\n// ... (other functions remain unchanged)") {
             // Handle splicing
             log.Printf("Detected placeholder in %s, splicing content...", filePath)
             updatedContent, spliceErr := spliceFileWithOriginal(filePath, newContent)
@@ -169,8 +169,9 @@ func spliceFileWithOriginal(filePath, newContent string) (string, error) {
     originalContent := string(originalContentBytes)
 
     // Split the response into sections before and after the placeholder
-    parts := strings.Split(newContent, "// ... (other functions remain unchanged)")
+    parts := strings.Split(newContent, "\n// ... (other functions remain unchanged)")
     if len(parts) != 2 {
+        log.Printf("newContent: %s", newContent)
         return "", fmt.Errorf("unexpected content format, placeholder not properly split in %s", filePath)
     }
 
@@ -201,10 +202,11 @@ func spliceFileWithOriginal(filePath, newContent string) (string, error) {
 func parseResponseForFiles(response string) (map[string]string, string, bool) {
     filesContent := make(map[string]string)
 
-    // Regex to match the START and END delimiters with file paths
-    startRegex := regexp.MustCompile(`/\* START OF FILE: (.*?) \*/`)
-    endRegex := regexp.MustCompile(`/\* END OF FILE: .*? \*/`)
-
+    // Regex to match the START and END delimiters with file paths, ensuring they 
+    //are surrounded by newlines
+    startRegex := regexp.MustCompile(`(?m)^\s*/\* START OF FILE: (.*?) \*/\s*$`)
+    endRegex := regexp.MustCompile(`(?m)^\s*/\* END OF FILE: .*? \*/\s*$`)
+    
     // Regex to match "Summary: $summary", where $summary contains only alphanumeric characters and dashes
     summaryRegex := regexp.MustCompile(`Summary: ([a-zA-Z0-9-]+)`)
     summaryMatch := summaryRegex.FindStringSubmatch(response)
