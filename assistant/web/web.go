@@ -52,5 +52,3 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
         "Link":    prLink,
     })
 }
-
-

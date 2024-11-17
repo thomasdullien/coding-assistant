@@ -112,4 +112,3 @@ func SendRequest(request ChatGPTRequest) (string, error) {
 
     return "", fmt.Errorf("no response from ChatGPT")
 }
-
