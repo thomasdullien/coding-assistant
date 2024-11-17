@@ -47,9 +47,13 @@ Lastly, some coding guidelines:
     You may suggest improvements to it, but removing large portions is probably
     going to deteriorate performance.
 
-In your responses, if you need to skip unchanged code, use the following
-string: '/* INSERT LINES $start-$end FROM $path/$filename */'. This will
-allow me to re-assemble the full file with your changes.
+The following is extremely important:
+In your responses, if you need to skip unchanged code, please make sure to use
+the exact string '// ... remaining functions unchanged' if you just want the
+rest of the file to be included. If you wish to skip just a section, use
+the following string: '/* INSERT LINES $start-$end FROM $path/$filename */'. 
+
+This will allow me to re-assemble the full file with your changes.
 `
 
 // CreateRequest prepares the prompt request for ChatGPT
@@ -112,3 +116,4 @@ func SendRequest(request ChatGPTRequest) (string, error) {
 
     return "", fmt.Errorf("no response from ChatGPT")
 }
+
