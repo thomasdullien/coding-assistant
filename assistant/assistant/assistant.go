@@ -1,16 +1,15 @@
 package assistant
 
 import (
+    "bufio"
+    "bytes"
     "fmt"
-    "regexp"
     "io/ioutil"
     "log"
     "os"
     "os/exec"
+    "regexp"
     "strings"
-    "bytes"
-    "bufio"
-    "path/filepath"
     "time" // Import time package
 
     "github.com/thomasdullien/coding-assistant/assistant/chatgpt"
@@ -86,35 +85,6 @@ func ProcessAssistant(data types.FormData) (string, error) {
 
 // All helper functions go here
 
-// It takes the summary as an argument and renames the local branch.
-func renameBranch(summary string) error {
-    // Append timestamp to the branch name to avoid collision
-    timestamp := time.Now().Format("20060102150405") // Format: YYYYMMDDHHMMSS
-    newBranchName := fmt.Sprintf("assistant-%s-%s", summary, timestamp)
-
-    // Run git command to rename the branch
-    cmd := exec.Command("git", "branch",
-      "-m", "assistant-branch", newBranchName)
-    cmd.Dir = "repo"
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Execute the command
-    err := cmd.Run()
-    if err != nil {
-        // Log the output and error if the command fails
-        log.Printf("Failed to rename branch. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
-        return fmt.Errorf("failed to rename branch: %v", err)
-    }
-
-    // Log the successful output
-    log.Printf("Branch renamed successfully. Stdout: %s", outBuf.String())
-    return nil
-}
-
 // applyChangesWithChatGPT sends a prompt to ChatGPT, retrieves the response, and applies any changes
 // specified in the response to the relevant files in the local repository.
 func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
@@ -163,6 +133,7 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     }
     return nil
 }
+
 
 func spliceFileWithOriginal(filePath, newContent string) (string, error) {
     // Read the original file from the repository
@@ -255,161 +226,7 @@ func parseResponseForFiles(response string) (map[string]string, string, bool) {
     return filesContent, summary, true
 }
 
-func cloneAndCheckoutRepo(data *types.FormData) error {
-    // Remove the existing "repo" directory if it exists
-    if _, err := os.Stat("repo"); err == nil {
-        err = os.RemoveAll("repo")
-        if err != nil {
-            return fmt.Errorf("failed to remove existing repo directory: %v", err)
-        }
-    }
-
-    // Prepare the git clone command
-    cmd := exec.Command("git", "clone", data.RepoURL, "repo")
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Run the command
-    err := cmd.Run()
-    if err != nil {
-        return fmt.Errorf("git clone failed: %v\nstdout: %s\nstderr: %s", err, outBuf.String(), errBuf.String())
-    }
-
-    // Checkout the new branch
-    cmd = exec.Command("git", "checkout", "-b", data.Branch)
-    cmd.Dir = "repo"
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-    err = cmd.Run()
-    if err != nil {
-        return fmt.Errorf("git checkout failed: %v\nstdout: %s\nstderr: %s", err, outBuf.String(), errBuf.String())
-    }
-
-    return nil
-}
-
-// calculateDependencies runs `gcc -M` on the input files and parses the output to extract dependencies.
-func calculateDependencies(files []string) ([]string, error) {
-    // Prepend "repo/" to each file in the files slice
-    for i, file := range files {
-        files[i] = "repo/" + file
-    }
-
-    // Prepare the gcc command with the -M flag and the input files
-    args := append([]string{"-M"}, files...)
-    cmd := exec.Command("gcc", args...)
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Run the command
-    err := cmd.Run()
-    if err != nil {
-        return nil, fmt.Errorf("gcc -M failed: %v\nstderr: %s", err, errBuf.String())
-    }
-
-    // Parse the output, filtering out lines that end with ':' or don't contain "repo"
-    scanner := bufio.NewScanner(&outBuf)
-    var dependencies []string
-
-    for scanner.Scan() {
-        line := scanner.Text()
-        // Split the line by spaces to handle the output format
-        parts := strings.Fields(line)
-
-        for _, part := range parts {
-            // Remove any trailing commas or backslashes that `gcc -M` might include
-            part = strings.TrimSuffix(part, ",")
-            part = strings.TrimSuffix(part, "\\")
-
-            // Filter out any strings that end with ':' or don't contain "repo"
-            if !strings.HasSuffix(part, ":") && strings.Contains(part, "repo") {
-                dependencies = append(dependencies, part)
-            }
-        }
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, fmt.Errorf("error reading gcc -M output: %v", err)
-    }
-
-    return dependencies, nil
-}
-
-// commitAndPush stages changes, commits them, and pushes to the remote repository.
-// Logs detailed output in case of errors for each command.
-func commitAndPush(data *types.FormData) error {
-    // Run `git add .` to stage all changes
-    addCmd := exec.Command("git", "add", ".")
-    var addOutBuf, addErrBuf bytes.Buffer
-    addCmd.Stdout = &addOutBuf
-    addCmd.Stderr = &addErrBuf
-    addCmd.Dir = "repo"
-
-    if err := addCmd.Run(); err != nil {
-        log.Printf("Failed to add changes. Stdout: %s, Stderr: %s", addOutBuf.String(), addErrBuf.String())
-        return fmt.Errorf("failed to add changes: %v", err)
-    }
-
-    // Run `git commit -m "Applying user prompt changes"` to create a commit
-    commitCmd := exec.Command("git", "commit", "-m", fmt.Sprintf("Applying changes from user prompt: %s", data.Prompt))
-    var commitOutBuf, commitErrBuf bytes.Buffer
-    commitCmd.Stdout = &commitOutBuf
-    commitCmd.Stderr = &commitErrBuf
-    commitCmd.Dir = "repo"
-
-    if err := commitCmd.Run(); err != nil {
-        log.Printf("Failed to commit changes. Stdout: %s, Stderr: %s", commitOutBuf.String(), commitErrBuf.String())
-        return fmt.Errorf("failed to commit changes: %v", err)
-    }
-
-    // Run `git push -u origin <branch>` to push the changes to the remote branch
-    log.Println("data.Branch is", data.Branch)
-    pushCmd := exec.Command("git", "push", "-u", "origin", data.Branch)
-    var pushOutBuf, pushErrBuf bytes.Buffer
-    pushCmd.Stdout = &pushOutBuf
-    pushCmd.Stderr = &pushErrBuf
-    pushCmd.Dir = "repo"
-
-    if err := pushCmd.Run(); err != nil {
-        log.Printf("Failed to push changes. Stdout: %s, Stderr: %s", pushOutBuf.String(), pushErrBuf.String())
-        return fmt.Errorf("failed to push changes: %v", err)
-    }
-
-    log.Println("Changes committed and pushed successfully.")
-    return nil
-}
-
-// createPullRequest creates a pull request using the GitHub CLI (`gh`) command.
-// Logs detailed output in case of errors.
-func createPullRequest(data *types.FormData) (string, error) {
-    // Prepare the `gh` command to create a pull request
-    cmd := exec.Command("gh", "pr", "create", "--title", fmt.Sprintf("Automated Changes based on: %s", data.Prompt), "--body", fmt.Sprintf("Automated changes based on: %s", data.Prompt))
-    cmd.Dir = "repo" // Set the working directory to the local repo
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Execute the command
-    err := cmd.Run()
-    if err != nil {
-        // Log the output and error if the command fails
-        log.Printf("Failed to create pull request. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
-        return "", fmt.Errorf("failed to create pull request: %v", err)
-    }
-
-    // Log the successful output
-    log.Printf("Pull request created successfully. Stdout: %s", outBuf.String())
-    return outBuf.String(), nil
-}
-
+// runTests executes the tests defined in the repo and returns true if they pass.
 func runTests() bool {
     cmd := exec.Command("make", "tests")
     cmd.Dir = "repo"
@@ -417,6 +234,7 @@ func runTests() bool {
     return err == nil
 }
 
+// includeEntireRepo includes all .go files in the given repository directory.
 func includeEntireRepo(repoPath string) ([]string, error) {
     var files []string
     err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
