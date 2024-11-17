@@ -50,10 +50,10 @@ Lastly, some coding guidelines:
 The following is extremely important:
 In your responses, if you need to skip unchanged code, please make sure to use
 the exact string '// ... remaining functions unchanged' if you just want the
-rest of the file to be included. If you wish to skip just a section, use
-the following string: '/* INSERT LINES $start-$end FROM $path/$filename */'. 
-
-This will allow me to re-assemble the full file with your changes.
+rest of the file to be included. *Also* ensure that the last 7 lines prior to
+the comment are verbatim copies from the unchanged file, so that I can easily
+localize from where to include the data. Lastly, if you wish to skip just a 
+section, use the following string: '/* INSERT LINES $start-$end FROM $path/$filename */'. This will allow me to re-assemble the full file with your changes.
 `
 
 // CreateRequest prepares the prompt request for ChatGPT
