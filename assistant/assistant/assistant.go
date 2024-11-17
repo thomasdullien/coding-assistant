@@ -10,6 +10,7 @@ import (
     "strings"
     "bytes"
     "bufio"
+    "time" // Added to use the current timestamp
 
     "github.com/thomasdullien/coding-assistant/assistant/chatgpt"
     "github.com/thomasdullien/coding-assistant/assistant/types"
@@ -28,7 +29,7 @@ func ProcessAssistant(data types.FormData) (string, error) {
     log.Println("Calculating dependencies...")
     deps, err := calculateDependencies(data.Files)
     for i, dep := range deps {
-      log.Printf("Dependency %d: %s", i, dep)
+        log.Printf("Dependency %d: %s", i, dep)
     }
     if err != nil {
         return "", fmt.Errorf("failed to calculate dependencies: %v", err)
@@ -54,7 +55,7 @@ func ProcessAssistant(data types.FormData) (string, error) {
             log.Println("Tests passed, creating pull request...")
             err1 := commitAndPush(&data)
             if err1 != nil {
-              return "", fmt.Errorf("failed to commit and push changes: %v", err1)
+                return "", fmt.Errorf("failed to commit and push changes: %v", err1)
             }
             log.Println("Changes pushed to branch.")
             prlink, err := createPullRequest(&data)
@@ -74,11 +75,12 @@ func ProcessAssistant(data types.FormData) (string, error) {
 
 // It takes the summary as an argument and renames the local branch.
 func renameBranch(summary string) error {
-    newBranchName := fmt.Sprintf("assistant-%s", summary)
+    currentTime := time.Now().Format("20060102150405") // Format to YYYYMMDDHHMMSS
+    newBranchName := fmt.Sprintf("assistant-%s-%s", summary, currentTime)
 
     // Run git command to rename the branch
     cmd := exec.Command("git", "branch",
-      "-m", "assistant-branch", newBranchName)
+        "-m", "assistant-branch", newBranchName)
     cmd.Dir = "repo"
 
     // Capture stdout and stderr
@@ -117,11 +119,11 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
         return fmt.Errorf("failed to parse files from ChatGPT response")
     }
     if success {
-      err := renameBranch(summary)
-      data.Branch = fmt.Sprintf("assistant-%s", summary)
-      if err != nil {
-        log.Fatalf("Error renaming branch: %v", err)
-      }
+        err := renameBranch(summary)
+        data.Branch = fmt.Sprintf("assistant-%s-%s", summary, time.Now().Format("20060102150405")) // Update branch name with time
+        if err != nil {
+            log.Fatalf("Error renaming branch: %v", err)
+        }
     }
 
     // Loop through each file path and content pair, writing the content to the specified file path
@@ -137,242 +139,6 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     return nil
 }
 
-// parseResponseForFiles extracts the content for each file and a summary string from the response.
-// It returns a map of file paths and their contents, the extracted summary string, and a boolean indicating success.
-func parseResponseForFiles(response string) (map[string]string, string, bool) {
-    filesContent := make(map[string]string)
+// ... (other functions remain unchanged)
 
-    // Regex to match the START and END delimiters with file paths
-    startRegex := regexp.MustCompile(`/\* START OF FILE: (.*?) \*/`)
-    endRegex := regexp.MustCompile(`/\* END OF FILE: .*? \*/`)
-
-    // Regex to match "Summary: $summary", where $summary contains only alphanumeric characters and dashes
-    summaryRegex := regexp.MustCompile(`Summary: ([a-zA-Z0-9-]+)`)
-    summaryMatch := summaryRegex.FindStringSubmatch(response)
-    var summary string
-    if len(summaryMatch) > 1 {
-        summary = summaryMatch[1]
-    } else {
-        return nil, "", false // No summary found
-    }
-
-    // Find all start matches and iterate over them
-    startMatches := startRegex.FindAllStringSubmatchIndex(response, -1)
-    if len(startMatches) == 0 {
-        return nil, "", false // No files found
-    }
-
-    for _, startMatch := range startMatches {
-        end := startMatch[1]
-        filename := response[startMatch[2]:startMatch[3]] // Extract filename from capture group
-
-        // Find the corresponding end delimiter starting from the end of the start delimiter
-        endMatch := endRegex.FindStringIndex(response[end:])
-        if endMatch == nil {
-            continue // If there's no matching END delimiter, skip this file
-        }
-
-        // Calculate actual end position in the original string
-        contentStart := end
-        contentEnd := end + endMatch[0]
-        content := strings.TrimSpace(response[contentStart:contentEnd])
-
-        // Store the filename and its content in the map
-        filesContent[filename] = content
-    }
-
-    return filesContent, summary, true
-}
-
-func cloneAndCheckoutRepo(data *types.FormData) error {
-    // Remove the existing "repo" directory if it exists
-    if _, err := os.Stat("repo"); err == nil {
-        err = os.RemoveAll("repo")
-        if err != nil {
-            return fmt.Errorf("failed to remove existing repo directory: %v", err)
-        }
-    }
-
-    // Prepare the git clone command
-    cmd := exec.Command("git", "clone", data.RepoURL, "repo")
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Run the command
-    err := cmd.Run()
-    if err != nil {
-        return fmt.Errorf("git clone failed: %v\nstdout: %s\nstderr: %s", err, outBuf.String(), errBuf.String())
-    }
-
-    // Checkout the new branch
-    cmd = exec.Command("git", "checkout", "-b", data.Branch)
-    cmd.Dir = "repo"
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-    err = cmd.Run()
-    if err != nil {
-        return fmt.Errorf("git checkout failed: %v\nstdout: %s\nstderr: %s", err, outBuf.String(), errBuf.String())
-    }
-
-    return nil
-}
-
-// calculateDependencies runs `gcc -M` on the input files and parses the output to extract dependencies.
-func calculateDependencies(files []string) ([]string, error) {
-    // Prepend "repo/" to each file in the files slice
-    for i, file := range files {
-        files[i] = "repo/" + file
-    }
-
-    // Prepare the gcc command with the -M flag and the input files
-    args := append([]string{"-M"}, files...)
-    cmd := exec.Command("gcc", args...)
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Run the command
-    err := cmd.Run()
-    if err != nil {
-        return nil, fmt.Errorf("gcc -M failed: %v\nstderr: %s", err, errBuf.String())
-    }
-
-    // Parse the output, filtering out lines that end with ':' or don't contain "repo"
-    scanner := bufio.NewScanner(&outBuf)
-    var dependencies []string
-
-    for scanner.Scan() {
-        line := scanner.Text()
-        // Split the line by spaces to handle the output format
-        parts := strings.Fields(line)
-
-        for _, part := range parts {
-            // Remove any trailing commas or backslashes that `gcc -M` might include
-            part = strings.TrimSuffix(part, ",")
-            part = strings.TrimSuffix(part, "\\")
-
-            // Filter out any strings that end with ':' or don't contain "repo"
-            if !strings.HasSuffix(part, ":") && strings.Contains(part, "repo") {
-                dependencies = append(dependencies, part)
-            }
-        }
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, fmt.Errorf("error reading gcc -M output: %v", err)
-    }
-
-    return dependencies, nil
-}
-
-// commitAndPush stages changes, commits them, and pushes to the remote repository.
-// Logs detailed output in case of errors for each command.
-func commitAndPush(data *types.FormData) error {
-    // Run `git add .` to stage all changes
-    addCmd := exec.Command("git", "add", ".")
-    var addOutBuf, addErrBuf bytes.Buffer
-    addCmd.Stdout = &addOutBuf
-    addCmd.Stderr = &addErrBuf
-    addCmd.Dir = "repo"
-
-    if err := addCmd.Run(); err != nil {
-        log.Printf("Failed to add changes. Stdout: %s, Stderr: %s", addOutBuf.String(), addErrBuf.String())
-        return fmt.Errorf("failed to add changes: %v", err)
-    }
-
-    // Run `git commit -m "Applying requested changes"` to create a commit
-    commitCmd := exec.Command("git", "commit", "-m", "Applying requested changes")
-    var commitOutBuf, commitErrBuf bytes.Buffer
-    commitCmd.Stdout = &commitOutBuf
-    commitCmd.Stderr = &commitErrBuf
-    commitCmd.Dir = "repo"
-
-    if err := commitCmd.Run(); err != nil {
-        log.Printf("Failed to commit changes. Stdout: %s, Stderr: %s", commitOutBuf.String(), commitErrBuf.String())
-        return fmt.Errorf("failed to commit changes: %v", err)
-    }
-
-    // Run `git push -u origin <branch>` to push the changes to the remote branch
-    log.Println("data.Branch is", data.Branch)
-    pushCmd := exec.Command("git", "push", "-u", "origin", data.Branch)
-    var pushOutBuf, pushErrBuf bytes.Buffer
-    pushCmd.Stdout = &pushOutBuf
-    pushCmd.Stderr = &pushErrBuf
-    pushCmd.Dir = "repo"
-
-    if err := pushCmd.Run(); err != nil {
-        log.Printf("Failed to push changes. Stdout: %s, Stderr: %s", pushOutBuf.String(), pushErrBuf.String())
-        return fmt.Errorf("failed to push changes: %v", err)
-    }
-
-    log.Println("Changes committed and pushed successfully.")
-    return nil
-}
-
-// createPullRequest creates a pull request using the GitHub CLI (`gh`) command.
-// Logs detailed output in case of errors.
-func createPullRequest(data *types.FormData) (string, error) {
-    // Prepare the `gh` command to create a pull request
-    cmd := exec.Command("gh", "pr", "create", "--title", "Automated Changes", "--body", "Please review the automated changes.")
-    cmd.Dir = "repo" // Set the working directory to the local repo
-
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
-
-    // Execute the command
-    err := cmd.Run()
-    if err != nil {
-        // Log the output and error if the command fails
-        log.Printf("Failed to create pull request. Stdout: %s, Stderr: %s", outBuf.String(), errBuf.String())
-        return "", fmt.Errorf("failed to create pull request: %v", err)
-    }
-
-    // Log the successful output
-    log.Printf("Pull request created successfully. Stdout: %s", outBuf.String())
-    return outBuf.String(), nil
-}
-
-func runTests() bool {
-    cmd := exec.Command("make", "tests")
-    cmd.Dir = "repo"
-    err := cmd.Run()
-    return err == nil
-}
-
-// buildPrompt generates a prompt that includes the user's request and the contents of each dependency file.
-func buildPrompt(userPrompt string, deps []string) string {
-    var builder strings.Builder
-
-    // Start with the user prompt
-    builder.WriteString(userPrompt)
-    builder.WriteString("\n\nDependencies:\n")
-
-    // Loop through each dependency file
-    for _, dep := range deps {
-        // Add start delimiter
-        builder.WriteString(fmt.Sprintf("\n/* START OF FILE: %s */\n", dep))
-
-        // Read the content of the dependency file
-        content, err := ioutil.ReadFile(dep)
-        if err != nil {
-            builder.WriteString(fmt.Sprintf("Error reading file: %s\n", err))
-        } else {
-            builder.Write(content)
-        }
-
-        // Add end delimiter
-        builder.WriteString(fmt.Sprintf("\n/* END OF FILE: %s */\n\n", dep))
-    }
-
-    return builder.String()
-}
-
-
-
+```
