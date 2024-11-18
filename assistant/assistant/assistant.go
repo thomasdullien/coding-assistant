@@ -194,7 +194,6 @@ func calculateDependencies(files []string) ([]string, error) {
     return dependencies, nil
 }
 
-
 func runTestsOrBuild(repoType string, isBuild bool) (bool, string) {
   var cmd *exec.Cmd
   var action string
@@ -237,6 +236,7 @@ func runTestsOrBuild(repoType string, isBuild bool) (bool, string) {
 
   // Log success and return
   log.Printf("%s passed successfully.", action)
+  os.Remove("build-out-executable")
   return true, output
 }
 
