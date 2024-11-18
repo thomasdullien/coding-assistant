@@ -59,11 +59,20 @@ func ProcessAssistant(data types.FormData) (string, error) {
             return "", fmt.Errorf("failed to apply changes: %v", err)
         }
 
+        log.Println("Running build...")
+        builderr, buildout := runTestsOrBuild(data.RepoType, true)
+        if !builderr {
+          log.Println("Build successful.")
+        } else {
+          prompt += "\nBuild failed, please address the following issues:\n" + buildout
+          continue
+        }
+
         // Run tests and create pull request if successful
         log.Println("Running tests...")
         // For the moment, assume that Golang tests always pass. This
         // needs to change in the future.
-        testerr, output := runTests(data.RepoType)
+        testerr, output := runTestsOrBuild(data.RepoType, false)
 
         if !testerr {
             log.Println("Tests passed, creating pull request...")
@@ -135,49 +144,6 @@ func applyChangesWithChatGPT(data *types.FormData, prompt string) error {
     return nil
 }
 
-func spliceFileWithOriginal(filePath, newContent string) (string, error) {
-    // Read the original file from the repository
-    originalContentBytes, err := ioutil.ReadFile(filePath)
-    if err != nil {
-        return "", fmt.Errorf("failed to read original file %s: %v", filePath, err)
-    }
-    originalContent := string(originalContentBytes)
-
-    // Split the response into sections before and after the placeholder
-    parts := strings.Split(newContent, "// ... (other functions remain unchanged)")
-    if len(parts) != 2 {
-        return "", fmt.Errorf("unexpected content format, placeholder not properly split in %s", filePath)
-    }
-
-    beforePlaceholder := parts[0]
-    afterPlaceholder := parts[1]
-
-    // Extract the last few lines of "beforePlaceholder"
-    beforeLines := strings.Split(beforePlaceholder, "\n")
-    linesToMatch := 5
-    if len(beforeLines) < linesToMatch {
-        linesToMatch = len(beforeLines)
-    }
-    lastFewLines := strings.Join(beforeLines[len(beforeLines)-linesToMatch:], "\n")
-
-    // Search for the last few lines in the original file
-    beforeIndex := strings.LastIndex(originalContent, lastFewLines)
-    if beforeIndex == -1 {
-        return "", fmt.Errorf("could not find matching section for 'before' in original file %s", filePath)
-    }
-
-    // Extract the content from the original file after the placeholder
-    afterIndex := strings.Index(originalContent[beforeIndex:], afterPlaceholder)
-    if afterIndex == -1 {
-        return "", fmt.Errorf("could not find matching section for 'after' in original file %s", filePath)
-    }
-
-    // Splice the sections together
-    splicedContent := originalContent[:beforeIndex] + beforePlaceholder + originalContent[beforeIndex+afterIndex:] + afterPlaceholder
-
-    return splicedContent, nil
-}
-
 // calculateDependencies runs `gcc -M` on the input files and parses the output to extract dependencies.
 func calculateDependencies(files []string) ([]string, error) {
     // Prepend "repo/" to each file in the files slice
@@ -228,44 +194,50 @@ func calculateDependencies(files []string) ([]string, error) {
     return dependencies, nil
 }
 
-// runTests executes the appropriate test command based on the repository type (C++ or Golang).
-// It returns a boolean indicating success and the combined stdout/stderr output for further prompting.
-func runTests(repoType string) (bool, string) {
-    var cmd *exec.Cmd
 
-    if repoType == "C++" {
-        // Run "make tests" for C++ repositories
-        cmd = exec.Command("make", "tests")
-    } else if repoType == "Golang" {
-        // Run "go test ./..." for Golang repositories
-        cmd = exec.Command("go", "test", "./...")
-    } else {
-        return false, "Unknown repository type"
-    }
+func runTestsOrBuild(repoType string, isBuild bool) (bool, string) {
+  var cmd *exec.Cmd
+  var action string
+  if isBuild {
+    action = "Build"
+  } else {
+    action = "Test"
+  }
 
-    // Set the working directory to "repo"
-    cmd.Dir = "repo"
+  if repoType == "C++" && isBuild {
+    cmd = exec.Command("make", "build")
+  } else if repoType == "C++" && !isBuild {
+    cmd = exec.Command("make", "tests")
+  } else if repoType == "Golang" && isBuild {
+    cmd = exec.Command("go", "build", "-o", "build-out-executable", ".")
+  } else if repoType == "Golang" && !isBuild {
+    cmd = exec.Command("go", "test", "./...")
+  } else {
+    return false, "Unknown repository type"
+  }
+  // Set the working directory to "repo"
+  cmd.Dir = "repo"
 
-    // Capture stdout and stderr
-    var outBuf, errBuf bytes.Buffer
-    cmd.Stdout = &outBuf
-    cmd.Stderr = &errBuf
+  // Capture stdout and stderr
+  var outBuf, errBuf bytes.Buffer
+  cmd.Stdout = &outBuf
+  cmd.Stderr = &errBuf
 
-    // Run the command
-    err := cmd.Run()
+  // Run the command
+  err := cmd.Run()
 
-    // Combine stdout and stderr for logging or further prompting
-    output := outBuf.String() + "\n" + errBuf.String()
+  // Combine stdout and stderr for logging or further prompting
+  output := outBuf.String() + "\n" + errBuf.String()
 
-    if err != nil {
-        // Log the failure and output
-        log.Printf("Tests failed. Output:\n%s", output)
-        return false, output
-    }
+  if err != nil {
+      // Log the failure and output
+      log.Printf("%s failed. Output:\n%s", action, output)
+      return false, output
+  }
 
-    // Log success and return
-    log.Println("Tests passed successfully.")
-    return true, output
+  // Log success and return
+  log.Printf("%s passed successfully.", action)
+  return true, output
 }
 
 func includeEntireRepo(repoPath string) ([]string, error) {
