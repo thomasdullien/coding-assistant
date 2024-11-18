@@ -45,9 +45,11 @@ Please execute the task described below with the following guidelines:
    - A one-line commit message in the format "Commit-Message: $message"
 6. Absolutely do not remove comments. It is OK to suggest improvements to
    comments.
+7. Ensure that you never return two copies of the same file, each file should
+   only be present once.
 
 Please ensure your replies strictly adhere to these rules to avoid ambiguity
-and issues in creating PRs out of your changes.
+and issues in creating PRs out of your changes. This is very important.
 `
 
 // CreateRequest prepares the prompt request for ChatGPT
